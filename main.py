@@ -18,8 +18,8 @@ class Ball(pygame.sprite.Sprite):
         self.image = square
         self.rect = self.image.get_rect()
         self.rect.center = x, y
-        # if pygame.sprite.spritecollideany(self, path_group) is not None:
-        #     return None
+        if pygame.sprite.spritecollideany(self, path_group) is not None:
+            return None
         super().__init__(path_group, all_sprites)
         self.body = world.CreateStaticBody(
             position=coords_pixels_to_world((x, y)),
@@ -31,8 +31,11 @@ class Ball(pygame.sprite.Sprite):
 
     def update(self):
         if pygame.sprite.collide_mask(self, eraser):
-            world.DestroyBody(self.body)
-            self.kill()
+            self.remove_from_game()
+
+    def remove_from_game(self):
+        world.DestroyBody(self.body)
+        self.kill()
 
 
 class Eraser(pygame.sprite.Sprite):
@@ -44,12 +47,10 @@ class Eraser(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
 
-        self.rect.x = x
-        self.rect.y = y
+        self.rect.center = x, y
 
     def move(self, x, y):
-        self.rect.x = x
-        self.rect.y = y
+        self.rect.center = x, y
 
 
 class Player(pygame.sprite.Sprite):
@@ -67,8 +68,8 @@ class Player(pygame.sprite.Sprite):
             bullet=True,
             fixtures=b2FixtureDef(
                 shape=b2CircleShape(radius=pixels_to_world(50)),
-                density=1000.0,
-                restitution=0.2,
+                density=1.0,
+                restitution=0.3,
                 friction=0.5)
         )
 
@@ -80,8 +81,17 @@ class Player(pygame.sprite.Sprite):
         position = coords_world_to_pixels(tuple(self.body.transform.position))
         self.rect.center = position
 
-    def get_info(self):
-        print(position)
+        # print(self.body.transform.position)
+        if list(self.body.transform.position)[1] <= 0:
+            upgrade_world(self)
+
+
+def upgrade_world(player):
+    current_position = player.rect.center
+    player.rect.center = (current_position[0], 10)
+    player.body.position = coords_pixels_to_world(player.rect.center)
+    for s in path_group.sprites():
+        s.remove_from_game()
 
 
 def load_image(name, colorkey=None):
@@ -140,7 +150,16 @@ def interval_points(p0, p1):
             yield (x0, y)
     yield p1
 
+
+def draw_walls(screen):
+    pygame.draw.rect(screen, pygame.Color("#ff8200"),
+                     (0, 0, 20, WINDOW_HEIGHT), 0)
+    pygame.draw.rect(screen, pygame.Color("#ff8200"),
+                     (WINDOW_WIDTH - 20, 0, 20, WINDOW_HEIGHT), 0)
+
 ##########################################################################
+
+
 def my_draw_polygon(polygon, body, fixture):
     vertices = [(body.transform * v) * PPM for v in polygon.vertices]
     vertices = [(v[0], WINDOW_HEIGHT - v[1]) for v in vertices]
@@ -158,6 +177,7 @@ def my_draw_circle(circle, body, fixture):
     pygame.draw.circle(screen, colors[body.type], [int(
         x) for x in position], int(circle.radius * PPM))
 
+
     # Note: Python 3.x will enforce that pygame get the integers it requests,
     #       and it will not convert from float.
 Box2D.b2.circleShape.draw = my_draw_circle
@@ -168,7 +188,7 @@ colors = {
 }
 ##################################################
 
-## main game loop
+# main game loop
 pygame.init()
 
 global screen
@@ -190,10 +210,34 @@ cursor = None
 
 player = Player(100, 1)
 
-# ground_body = world.CreateStaticBody(
-#     position=(0, 0),
-#     shapes=Box2D.b2.polygonShape(box=(50, 1)),
-# )
+
+world.CreateStaticBody(
+    position=coords_pixels_to_world((0, 0)),
+    fixtures=b2FixtureDef(
+        shape=b2.polygonShape(
+            box=(pixels_to_world(20), pixels_to_world(WINDOW_HEIGHT))),
+        density=100,
+        restitution=1.0,
+        friction=0.0)
+)
+world.CreateStaticBody(
+    position=coords_pixels_to_world((WINDOW_WIDTH, 0)),
+    fixtures=b2FixtureDef(
+        shape=b2.polygonShape(
+            box=(pixels_to_world(20), pixels_to_world(WINDOW_HEIGHT))),
+        density=100,
+        restitution=1.0,
+        friction=0.0)
+)
+world.CreateStaticBody(
+    position=coords_pixels_to_world((0, -20)),
+    fixtures=b2FixtureDef(
+        shape=b2.polygonShape(
+            box=(pixels_to_world(WINDOW_WIDTH), pixels_to_world(10))),
+        density=100,
+        restitution=1.0,
+        friction=0.0)
+)
 
 clock = pygame.time.Clock()
 running = True
@@ -245,7 +289,8 @@ while running:
     path_group.draw(screen)
     eraser_group.draw(screen)
     player_group.draw(screen)
-    # screen.blit(player.image, player.rect)
+
+    draw_walls(screen)
     # for body in world.bodies:
     #     for fixture in body.fixtures:
     #         fixture.shape.draw(body, fixture)
