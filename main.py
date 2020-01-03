@@ -30,7 +30,8 @@ class Ball(pygame.sprite.Sprite):
                 friction=0.2))
 
     def update(self):
-        if pygame.sprite.collide_mask(self, eraser):
+        if pygame.sprite.collide_mask(self, eraser) or \
+                pygame.sprite.spritecollideany(self, obstacle_group):
             self.remove_from_game()
 
     def remove_from_game(self):
@@ -41,7 +42,7 @@ class Ball(pygame.sprite.Sprite):
 class Eraser(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__(eraser_group, all_sprites)
-        im = load_image("erase.jpg", -1)
+        im = load_image("erase.jpg", -1)  # COMPLETE THIS
         im = pygame.transform.scale(im, (100, 100))
         self.image = im
         self.rect = self.image.get_rect()
@@ -56,12 +57,14 @@ class Eraser(pygame.sprite.Sprite):
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__(player_group, all_sprites)
-        im = load_image("player.png", -1)
+        im = load_image("player.png", -1)  # COMPLETE THIS
         im = pygame.transform.scale(im, (100, 100))
         self.original_image = im.copy()
         self.image = im.copy()
         self.rect = self.image.get_rect()
         self.rect.center = x, y
+
+        self.mask = pygame.mask.from_surface(self.image)
 
         self.body = world.CreateDynamicBody(
             position=coords_pixels_to_world((x, y)),
@@ -85,6 +88,28 @@ class Player(pygame.sprite.Sprite):
         if list(self.body.transform.position)[1] <= 0:
             upgrade_world(self)
 
+        if pygame.sprite.spritecollideany(self, obstacle_group):
+            print("loser")
+
+
+class Spikes(pygame.sprite.Sprite):
+    def __init__(self, center_coords):
+        super().__init__(obstacle_group)
+        self.image = load_image("spikes.png", -1)
+        self.rect = self.image.get_rect()
+        # self.mask = pygame.mask.from_surface(self.image)
+        self.rect.center = center_coords
+
+        self.body = world.CreateStaticBody(
+            position=coords_pixels_to_world(center_coords),
+            fixtures=b2FixtureDef(
+                shape=b2.polygonShape(box=(pixels_to_world(self.rect.w / 2 - 15),
+                                           pixels_to_world(self.rect.h / 2 - 15))),
+                density=0,
+                restitution=0.0,
+                friction=0.0)
+        )
+
 
 def upgrade_world(player):
     current_position = player.rect.center
@@ -104,17 +129,6 @@ def load_image(name, colorkey=None):
     else:
         image = image.convert_alpha()
     return image
-
-
-# def create_path_ball(pos):
-#     b = Ball(*pos)
-#     b.body = world.CreateStaticBody(position=coords_pixels_to_world(pos),
-#                                     fixtures=b2FixtureDef(
-#                                         shape=b2CircleShape(
-#                                             radius=pixels_to_world(10)),
-#                                         density=1.0,
-#                                         restitution=0,
-#                                         friction=0))
 
 
 def pixels_to_world(num):
@@ -177,7 +191,6 @@ def my_draw_circle(circle, body, fixture):
     pygame.draw.circle(screen, colors[body.type], [int(
         x) for x in position], int(circle.radius * PPM))
 
-
     # Note: Python 3.x will enforce that pygame get the integers it requests,
     #       and it will not convert from float.
 Box2D.b2.circleShape.draw = my_draw_circle
@@ -198,12 +211,13 @@ bg = pygame.transform.scale(load_image('tom_jerry.jpg'), WINDOW_SIZE)
 screen.blit(bg, (0, 0))
 
 # INIT STUFF
-world = b2World(gravity=(0, -20), doSleep=True)
+world = b2World(gravity=(0, -25), doSleep=True)
 
 all_sprites = pygame.sprite.Group()
 path_group = pygame.sprite.Group()
 eraser_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
+obstacle_group = pygame.sprite.Group()
 
 eraser = Eraser(-100, -100)
 cursor = None
@@ -238,6 +252,8 @@ world.CreateStaticBody(
         restitution=1.0,
         friction=0.0)
 )
+
+Spikes((300, 700))
 
 clock = pygame.time.Clock()
 running = True
@@ -286,14 +302,19 @@ while running:
 
     screen.blit(bg, (0, 0))
 
-    path_group.draw(screen)
-    eraser_group.draw(screen)
-    player_group.draw(screen)
+    for body in world.bodies:
+        for fixture in body.fixtures:
+            fixture.shape.draw(body, fixture)
+
+    for g in [path_group, eraser_group, player_group, obstacle_group]:
+        g.draw(screen)
+
+    # path_group.draw(screen)
+    # eraser_group.draw(screen)
+    # player_group.draw(screen)
+    # obstacle_group.draw(screen)
 
     draw_walls(screen)
-    # for body in world.bodies:
-    #     for fixture in body.fixtures:
-    #         fixture.shape.draw(body, fixture)
 
     all_sprites.update()
 
