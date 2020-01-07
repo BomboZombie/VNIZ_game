@@ -3,7 +3,9 @@ import os
 import math
 import random
 import re
+import sys
 from Box2D import *
+
 
 WINDOW_SIZE = WINDOW_WIDTH, WINDOW_HEIGHT = 1200, 800
 FPS = 60
@@ -100,7 +102,8 @@ class Player(pygame.sprite.Sprite):
         # обработка положения
         col = pygame.sprite.spritecollideany(self, obstacle_group)
         if col and pygame.sprite.collide_mask(self, col):
-            print("loser")
+            # print("loser")
+            pass
 
         if list(self.body.transform.position)[1] <= 0:
             upgrade_world(self)
@@ -120,12 +123,14 @@ class Player(pygame.sprite.Sprite):
 
 class Spikes(pygame.sprite.Sprite):
     def __init__(self, center_coords):
-        super().__init__(obstacle_group)
         self.image = load_image("spikes.png", -1)
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.center = center_coords
 
+        if not check_obstacle_sprite(self):
+            return None
+        super().__init__(obstacle_group, all_sprites)
         self.body = world.CreateStaticBody(
             position=coords_pixels_to_world(center_coords),
             fixtures=b2FixtureDef(
@@ -139,7 +144,6 @@ class Spikes(pygame.sprite.Sprite):
 
 class Blade(pygame.sprite.Sprite):
     def __init__(self, center_coords, velocity=100):
-        super().__init__(obstacle_group, all_sprites)
         if center_coords[0] > WINDOW_WIDTH // 2:
             self.original_image = load_image("right_blade.png", -1)
             clockwise = 1
@@ -152,6 +156,9 @@ class Blade(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.center = center_coords
 
+        if not check_obstacle_sprite(self):
+            return None
+        super().__init__(obstacle_group, all_sprites)
         self.body = world.CreateKinematicBody(
             position=coords_pixels_to_world(center_coords),
             angularVelocity=2.5 * clockwise,
@@ -175,7 +182,8 @@ class Blade(pygame.sprite.Sprite):
 
         # столкновение с др спрайтами
         col = pygame.sprite.spritecollideany(self, obstacle_group)
-        if self.rect.right >= WINDOW_WIDTH - 20 or self.rect.left <= 20:
+        if (self.rect.right >= WINDOW_WIDTH - 20 and self.body.linearVelocity[0] > 0) or \
+                (self.rect.left <= 20 and self.body.linearVelocity[0] < 0):
             self.body.linearVelocity = -1 * self.body.linearVelocity
         elif col and pygame.sprite.collide_mask(self, col) and col is not self:
             self.body.linearVelocity = -1 * self.body.linearVelocity
@@ -183,7 +191,8 @@ class Blade(pygame.sprite.Sprite):
 
 class ObstacleManager():
     def __init__(self):
-        self.field_height = 310
+        self.start = 380
+        self.step = 200
 
     def get_sequence(self):
         f = open("obstacles.txt", mode="r", encoding="utf8")
@@ -193,18 +202,35 @@ class ObstacleManager():
 
         res = list()
         for chunk in re.finditer(r"((?P<amnt>\d*)?(?P<name>\w+))", line):
-            res.append((chunk.group('name'), int(chunk.group('amnt')) if chunk.group('amnt') != "" else 1))
+            res.append((chunk.group('name'), int(chunk.group('amnt'))
+                        if chunk.group('amnt') != "" else 1))
         return res
 
-    def put_blade(self):
+    def put_blade(self, y, amnt):
+        # y - для центра
+        # random.gauss()
+
         pass
 
-    def put_spikes(self):
-        pass
+    def put_spikes(self, y, amnt):
+        # y - для центра
+        print(y, amnt)
+        padding = load_image("spikes.png", -1).get_width() // 2
+        for i in range(amnt):
+            s = Spikes((random.randint(0, WINDOW_WIDTH), y))
+            # while self.check_sprite(s) is False:
+            #     s = Spikes((random.randint(0, WINDOW_WIDTH), y))
+
+
 
     def insert_sequence(self):
         seq = self.get_sequence()
-        print(seq)
+        for i in range(len(seq)):
+            y = self.start + i * self.step
+            name, amnt = seq.pop(0)
+            {"S": self.put_spikes,
+                "B": self.put_blade
+             }.get(name)(y, amnt)
 
 
 def upgrade_world(player):
@@ -223,13 +249,17 @@ def upgrade_world(player):
     ob_man.insert_sequence()
 
 
-def generate_obstacles(score):
-    pass
-
-
 def remove_sprite_from_game(sprite):
     world.DestroyBody(sprite.body)
     sprite.kill()
+    sprite = None
+
+def check_obstacle_sprite(s):
+    if pygame.sprite.spritecollideany(s, obstacle_group) is not None:
+        return False
+    if s.rect.left < 20 or s.rect.right > WINDOW_WIDTH:
+        return False
+    return True
 
 
 def load_image(name, colorkey=None):
@@ -304,6 +334,7 @@ def my_draw_circle(circle, body, fixture):
     position = (position[0], WINDOW_HEIGHT - position[1])
     pygame.draw.circle(screen, colors.get(body.type, (0, 0, 0)), [int(
         x) for x in position], int(circle.radius * PPM))
+
 
     # Note: Python 3.x will enforce that pygame get the integers it requests,
     #       and it will not convert from float.
@@ -433,3 +464,4 @@ while running:
     clock.tick(FPS)
 
 pygame.quit()
+sys.exit()
