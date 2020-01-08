@@ -33,7 +33,7 @@ class Ball(pygame.sprite.Sprite):
             position=coords_pixels_to_world((x, y)),
             fixtures=b2FixtureDef(
                 shape=b2CircleShape(radius=pixels_to_world(10)),
-                density=0,
+                density=1,
                 restitution=0,
                 friction=1))
 
@@ -65,7 +65,7 @@ class Eraser(pygame.sprite.Sprite):
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
-        super().__init__(all_sprites)
+        super().__init__()
         im = load_image("player.png", -1)  # COMPLETE THIS
         im = pygame.transform.scale(im, (100, 100))
         self.original_image = im.copy()
@@ -446,6 +446,7 @@ while running:
 
     # обновимся
     world.Step(TIME_STEP, 10, 10)
+    player.update()
     all_sprites.update()
 
     # порисуем
