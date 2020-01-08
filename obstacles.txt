@@ -1,2 +1,5 @@
-2S S
-3S 2S
+2S B
+2B 2B
+B S
+S B
+3B S S

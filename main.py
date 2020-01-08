@@ -7,7 +7,7 @@ import sys
 from Box2D import *
 
 
-WINDOW_SIZE = WINDOW_WIDTH, WINDOW_HEIGHT = 1200, 800
+WINDOW_SIZE = WINDOW_WIDTH, WINDOW_HEIGHT = 1200, 900
 FPS = 60
 TIME_STEP = 1 / FPS
 BG_COLOR = pygame.Color('black')
@@ -123,42 +123,40 @@ class Player(pygame.sprite.Sprite):
 
 class Spikes(pygame.sprite.Sprite):
     def __init__(self, center_coords):
+        super().__init__(obstacle_group, all_sprites)
         self.image = load_image("spikes.png", -1)
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.center = center_coords
 
-        if not check_obstacle_sprite(self):
-            return None
-        super().__init__(obstacle_group, all_sprites)
         self.body = world.CreateStaticBody(
-            position=coords_pixels_to_world(center_coords),
+            position=coords_pixels_to_world((center_coords[0], center_coords[1] + 16)),
             fixtures=b2FixtureDef(
-                shape=b2.polygonShape(box=(pixels_to_world(self.rect.w / 2 - 15),
+                shape=b2.polygonShape(box=(pixels_to_world(self.rect.w / 2 - 5),
                                            pixels_to_world(self.rect.h / 2 - 15))),
                 density=0,
                 restitution=0.0,
-                friction=0.0)
-        )
+                friction=0.0))
 
 
 class Blade(pygame.sprite.Sprite):
     def __init__(self, center_coords, velocity=100):
+        super().__init__(obstacle_group, all_sprites)
         if center_coords[0] > WINDOW_WIDTH // 2:
             self.original_image = load_image("right_blade.png", -1)
             clockwise = 1
         else:
             self.original_image = load_image("left_blade.png", -1)
             clockwise = -1
+        self.original_image = pygame.transform.scale(
+            self.original_image, (150, 150))
 
         self.image = self.original_image.copy()
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.center = center_coords
 
-        if not check_obstacle_sprite(self):
-            return None
-        super().__init__(obstacle_group, all_sprites)
+        self.velocity = velocity
         self.body = world.CreateKinematicBody(
             position=coords_pixels_to_world(center_coords),
             angularVelocity=2.5 * clockwise,
@@ -168,8 +166,7 @@ class Blade(pygame.sprite.Sprite):
                     radius=pixels_to_world(self.rect.w // 2 - 20)),
                 density=0,
                 restitution=0.0,
-                friction=0.0)
-        )
+                friction=0.0))
 
     def update(self):
         # перемещение
@@ -181,12 +178,25 @@ class Blade(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
 
         # столкновение с др спрайтами
-        col = pygame.sprite.spritecollideany(self, obstacle_group)
-        if (self.rect.right >= WINDOW_WIDTH - 20 and self.body.linearVelocity[0] > 0) or \
-                (self.rect.left <= 20 and self.body.linearVelocity[0] < 0):
-            self.body.linearVelocity = -1 * self.body.linearVelocity
-        elif col and pygame.sprite.collide_mask(self, col) and col is not self:
-            self.body.linearVelocity = -1 * self.body.linearVelocity
+        col = obstacles_collide(self)
+        if col is False:
+            pass
+        elif col is True:
+            if (self.rect.right >= WINDOW_WIDTH - 20 and self.body.linearVelocity[0] > 0) or \
+                    (self.rect.left <= 20 and self.body.linearVelocity[0] < 0):
+                self.set_velocity(-1 * self.velocity)
+        # else:
+        #     relative_vel = col.velocity - self.velocity
+        #     if (self.velocity > 0 and col.velocity < 0) or \
+        #             (self.velocity < 0 and self.velocity > 0):
+        #         self.set_velocity(-1 * self.velocity)
+        #         col.set_velocity(-1 * col.velocity)
+        #     elif relative_vel > 0 and abs(self.velocity) > abs(col.velocity):
+        #         self.set_velocity(-1 * self.velocity)
+
+    def set_velocity(self, v):
+        self.velocity = v
+        self.body.linearVelocity = (pixels_to_world(v), 0)
 
 
 class ObstacleManager():
@@ -208,29 +218,33 @@ class ObstacleManager():
 
     def put_blade(self, y, amnt):
         # y - для центра
-        # random.gauss()
+        for _ in range(amnt):
+            b = Blade((random.randint(0, WINDOW_WIDTH), y))
+            while obstacles_collide(b):
+                remove_sprite_from_game(b)
+                b = Blade((random.randint(0, WINDOW_WIDTH), y))
 
-        pass
+            velocity = random.gauss(100, 50)
+            sign = random.choice([-1, 1])
+            b.set_velocity(sign * velocity)
 
     def put_spikes(self, y, amnt):
         # y - для центра
-        print(y, amnt)
-        padding = load_image("spikes.png", -1).get_width() // 2
-        for i in range(amnt):
+        for _ in range(amnt):
             s = Spikes((random.randint(0, WINDOW_WIDTH), y))
-            # while self.check_sprite(s) is False:
-            #     s = Spikes((random.randint(0, WINDOW_WIDTH), y))
-
-
+            while obstacles_collide(s):
+                remove_sprite_from_game(s)
+                s = Spikes((random.randint(0, WINDOW_WIDTH), y))
 
     def insert_sequence(self):
         seq = self.get_sequence()
         for i in range(len(seq)):
             y = self.start + i * self.step
             name, amnt = seq.pop(0)
-            {"S": self.put_spikes,
+            {
+                "S": self.put_spikes,
                 "B": self.put_blade
-             }.get(name)(y, amnt)
+            }.get(name)(y, amnt)
 
 
 def upgrade_world(player):
@@ -254,12 +268,14 @@ def remove_sprite_from_game(sprite):
     sprite.kill()
     sprite = None
 
-def check_obstacle_sprite(s):
-    if pygame.sprite.spritecollideany(s, obstacle_group) is not None:
-        return False
+
+def obstacles_collide(s):
+    for suspect in pygame.sprite.spritecollide(s, obstacle_group, False):
+        if suspect is not s and pygame.sprite.collide_mask(s, suspect):
+            return suspect
     if s.rect.left < 20 or s.rect.right > WINDOW_WIDTH:
-        return False
-    return True
+        return True
+    return False
 
 
 def load_image(name, colorkey=None):
@@ -355,7 +371,7 @@ bg = pygame.transform.scale(load_image('tom_jerry.jpg'), WINDOW_SIZE)
 screen.blit(bg, (0, 0))
 
 # INIT STUFF
-world = b2World(gravity=(0, -25), doSleep=True)
+world = b2World(gravity=(0, -10), doSleep=True)
 
 all_sprites = pygame.sprite.Group()
 path_group = pygame.sprite.Group()
@@ -457,9 +473,9 @@ while running:
     draw_walls(screen)
     player.display_score()
 
-    # for body in world.bodies:
-    #     for fixture in body.fixtures:
-    #         fixture.shape.draw(body, fixture)
+    for body in world.bodies:
+        for fixture in body.fixtures:
+            fixture.shape.draw(body, fixture)
 
     pygame.display.flip()
     clock.tick(FPS)
