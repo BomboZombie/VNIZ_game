@@ -130,7 +130,8 @@ class Spikes(pygame.sprite.Sprite):
         self.rect.center = center_coords
 
         self.body = world.CreateStaticBody(
-            position=coords_pixels_to_world((center_coords[0], center_coords[1] + 16)),
+            position=coords_pixels_to_world(
+                (center_coords[0], center_coords[1] + 16)),
             fixtures=b2FixtureDef(
                 shape=b2.polygonShape(box=(pixels_to_world(self.rect.w / 2 - 5),
                                            pixels_to_world(self.rect.h / 2 - 15))),
@@ -184,19 +185,36 @@ class Blade(pygame.sprite.Sprite):
         elif col is True:
             if (self.rect.right >= WINDOW_WIDTH - 20 and self.body.linearVelocity[0] > 0) or \
                     (self.rect.left <= 20 and self.body.linearVelocity[0] < 0):
-                self.set_velocity(-1 * self.velocity)
-        # else:
-        #     relative_vel = col.velocity - self.velocity
-        #     if (self.velocity > 0 and col.velocity < 0) or \
-        #             (self.velocity < 0 and self.velocity > 0):
-        #         self.set_velocity(-1 * self.velocity)
-        #         col.set_velocity(-1 * col.velocity)
-        #     elif relative_vel > 0 and abs(self.velocity) > abs(col.velocity):
-        #         self.set_velocity(-1 * self.velocity)
+                self.change_direction()
+        else:
+            x_center = (self.rect.centerx + col.rect.centerx) // 2
+            if (x_center - self.rect.centerx) / self.velocity > 0:
+                self.change_direction()
+            # if self.velocity * col.velocity < 0:
+            #     self.set_velocity(-1 * self.velocity)
+            #     col.set_velocity(-1 * col.velocity)
+            #     self.move_a_bit()
+            #     col.move_a_bit()
+            # elif (x_center - self.rect.centerx) / self.velocity > 0 and \
+            #         abs(self.velocity) > abs(col.velocity):
+            #     self.set_velocity(-1 * self.velocity)
+            #     self.move_a_bit()
+            # else:
+            #     col.set_velocity(-1 * col.velocity)
+            #     col.move_a_bit()
 
     def set_velocity(self, v):
         self.velocity = v
         self.body.linearVelocity = (pixels_to_world(v), 0)
+
+    def change_direction(self):
+        self.set_velocity(-1 * self.velocity)
+
+    def move_a_bit(self):
+        sign = int(self.velocity > 0)
+        current_position = self.rect.center
+        self.rect.center = (current_position[0] + sign * 5, current_position[1])
+        self.body.position = coords_pixels_to_world(self.rect.center)
 
 
 class ObstacleManager():
@@ -350,7 +368,6 @@ def my_draw_circle(circle, body, fixture):
     position = (position[0], WINDOW_HEIGHT - position[1])
     pygame.draw.circle(screen, colors.get(body.type, (0, 0, 0)), [int(
         x) for x in position], int(circle.radius * PPM))
-
 
     # Note: Python 3.x will enforce that pygame get the integers it requests,
     #       and it will not convert from float.
