@@ -6,7 +6,6 @@ import re
 import sys
 from Box2D import *
 
-
 WINDOW_SIZE = WINDOW_WIDTH, WINDOW_HEIGHT = 1200, 900
 FPS = 60
 TIME_STEP = 1 / FPS
@@ -102,7 +101,8 @@ class Player(pygame.sprite.Sprite):
         # обработка положения
         col = pygame.sprite.spritecollideany(self, obstacle_group)
         if col and pygame.sprite.collide_mask(self, col):
-            # print("loser")
+            global running
+            running = False
             pass
 
         if list(self.body.transform.position)[1] <= 0:
@@ -190,18 +190,6 @@ class Blade(pygame.sprite.Sprite):
             x_center = (self.rect.centerx + col.rect.centerx) // 2
             if (x_center - self.rect.centerx) / self.velocity > 0:
                 self.change_direction()
-            # if self.velocity * col.velocity < 0:
-            #     self.set_velocity(-1 * self.velocity)
-            #     col.set_velocity(-1 * col.velocity)
-            #     self.move_a_bit()
-            #     col.move_a_bit()
-            # elif (x_center - self.rect.centerx) / self.velocity > 0 and \
-            #         abs(self.velocity) > abs(col.velocity):
-            #     self.set_velocity(-1 * self.velocity)
-            #     self.move_a_bit()
-            # else:
-            #     col.set_velocity(-1 * col.velocity)
-            #     col.move_a_bit()
 
     def set_velocity(self, v):
         self.velocity = v
@@ -213,14 +201,15 @@ class Blade(pygame.sprite.Sprite):
     def move_a_bit(self):
         sign = int(self.velocity > 0)
         current_position = self.rect.center
-        self.rect.center = (current_position[0] + sign * 5, current_position[1])
+        self.rect.center = (
+            current_position[0] + sign * 5, current_position[1])
         self.body.position = coords_pixels_to_world(self.rect.center)
 
 
 class ObstacleManager():
     def __init__(self):
         self.start = 380
-        self.step = 200
+        self.step = 260
 
     def get_sequence(self):
         f = open("obstacles.txt", mode="r", encoding="utf8")
@@ -265,6 +254,23 @@ class ObstacleManager():
             }.get(name)(y, amnt)
 
 
+def load_image(name, colorkey=None):
+    fullname = os.path.join(os.path.dirname(__file__), 'data', name)
+    image = pygame.image.load(fullname).convert()
+    if colorkey is not None:
+        if colorkey == -1:
+            colorkey = image.get_at((0, 0))
+            image.set_colorkey(colorkey)
+    else:
+        image = image.convert_alpha()
+    return image
+
+
+def terminate():
+    pygame.quit()
+    sys.exit()
+
+
 def upgrade_world(player):
     # тело наверх
     current_position = player.rect.center
@@ -294,18 +300,6 @@ def obstacles_collide(s):
     if s.rect.left < 20 or s.rect.right > WINDOW_WIDTH:
         return True
     return False
-
-
-def load_image(name, colorkey=None):
-    fullname = os.path.join(os.path.dirname(__file__), 'data', name)
-    image = pygame.image.load(fullname).convert()
-    if colorkey is not None:
-        if colorkey == -1:
-            colorkey = image.get_at((0, 0))
-            image.set_colorkey(colorkey)
-    else:
-        image = image.convert_alpha()
-    return image
 
 
 def pixels_to_world(num):
@@ -349,6 +343,41 @@ def draw_walls(screen):
                      (WINDOW_WIDTH - 20, 0, 20, WINDOW_HEIGHT), 0)
 
 
+#    -- WINDOWS --    #
+
+def start_window():
+    screen = pygame.display.set_mode(WINDOW_SIZE)
+
+    bg = pygame.transform.scale(load_image(
+        'start_image.png'), WINDOW_SIZE)
+    screen.blit(bg, (0, 0))
+
+    clock = pygame.time.Clock()
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                return  # начинаем игру
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+def end_window():
+    run = True
+
+    fg = pygame.Surface(WINDOW_SIZE, pygame.SRCALPHA)
+    fg.fill((0, 0, 0, 128))
+    screen.blit(fg, (0, 0))
+
+    while run:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                run = False
+
+
 ##########################################################################
 
 
@@ -382,120 +411,118 @@ colors = {
 # main game loop
 pygame.init()
 
-screen = pygame.display.set_mode(WINDOW_SIZE)
+start_window()
+loop = True
+while loop:
+    screen = pygame.display.set_mode(WINDOW_SIZE)
 
-bg = pygame.transform.scale(load_image('tom_jerry.jpg'), WINDOW_SIZE)
-screen.blit(bg, (0, 0))
-
-# INIT STUFF
-world = b2World(gravity=(0, -10), doSleep=True)
-
-all_sprites = pygame.sprite.Group()
-path_group = pygame.sprite.Group()
-# fake_path = pygame.sprite.Group()
-obstacle_group = pygame.sprite.Group()
-
-eraser = Eraser(-100, -100)
-cursor = None
-
-player = Player(100, 1)
-ob_man = ObstacleManager()
-
-
-world.CreateStaticBody(
-    position=coords_pixels_to_world((0, 0)),
-    fixtures=b2FixtureDef(
-        shape=b2.polygonShape(
-            box=(pixels_to_world(20), pixels_to_world(WINDOW_HEIGHT))),
-        density=100,
-        restitution=1.0,
-        friction=0.0)
-)
-world.CreateStaticBody(
-    position=coords_pixels_to_world((WINDOW_WIDTH, 0)),
-    fixtures=b2FixtureDef(
-        shape=b2.polygonShape(
-            box=(pixels_to_world(20), pixels_to_world(WINDOW_HEIGHT))),
-        density=100,
-        restitution=1.0,
-        friction=0.0)
-)
-world.CreateStaticBody(
-    position=coords_pixels_to_world((0, -20)),
-    fixtures=b2FixtureDef(
-        shape=b2.polygonShape(
-            box=(pixels_to_world(WINDOW_WIDTH), pixels_to_world(10))),
-        density=100,
-        restitution=1.0,
-        friction=0.0)
-)
-
-Spikes((300, 700))
-# Blade((500, 700))
-Blade((700, 700))
-
-clock = pygame.time.Clock()
-running = True
-
-drawing_on = False
-erasing_on = False
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            # if player is None:
-            #     player = Player(*event.pos)
-            #     continue
-            mouse_btn = pygame.mouse.get_pressed()
-            if mouse_btn[0]:
-                drawing_on = True
-                erasing_on = False
-                prev_point = event.pos
-                cur_point = None
-            elif mouse_btn[2]:
-                erasing_on = True
-                drawing_on = False
-                eraser.move(*event.pos)
-        if event.type == pygame.MOUSEMOTION:
-            if drawing_on:
-                cur_point = event.pos
-                for pt in interval_points(prev_point, cur_point):
-                    Ball(*pt)
-                prev_point = cur_point
-            elif erasing_on:
-                eraser.move(*event.pos)
-        if event.type == pygame.MOUSEBUTTONUP:
-            if drawing_on:
-                Ball(*event.pos)
-            drawing_on = False
-            erasing_on = False
-            eraser.move(-100, -100)
-        if event.type == pygame.KEYDOWN:
-            mouse_coords = pygame.mouse.get_pos()
-            btn_pressed = pygame.key.get_pressed()
-            if btn_pressed[pygame.K_w]:
-                player = Player(*mouse_coords)
-
-    # обновимся
-    world.Step(TIME_STEP, 10, 10)
-    player.update()
-    all_sprites.update()
-
-    # порисуем
+    bg = pygame.transform.scale(load_image('tom_jerry.jpg'), WINDOW_SIZE)
     screen.blit(bg, (0, 0))
-    for obg in [path_group, eraser, player, obstacle_group]:
-        obg.draw(screen)
-    # fake_path.draw(screen)
-    draw_walls(screen)
-    player.display_score()
 
-    for body in world.bodies:
-        for fixture in body.fixtures:
-            fixture.shape.draw(body, fixture)
+    world = b2World(gravity=(0, -15), doSleep=True)
 
-    pygame.display.flip()
-    clock.tick(FPS)
+    all_sprites = pygame.sprite.Group()
+    path_group = pygame.sprite.Group()
+    obstacle_group = pygame.sprite.Group()
+
+    eraser = Eraser(-100, -100)
+    cursor = None
+
+    player = Player(100, 1)
+    ob_man = ObstacleManager()
+
+    world.CreateStaticBody(
+        position=coords_pixels_to_world((0, 0)),
+        fixtures=b2FixtureDef(
+            shape=b2.polygonShape(
+                box=(pixels_to_world(20), pixels_to_world(WINDOW_HEIGHT))),
+            density=100,
+            restitution=1.0,
+            friction=0.0)
+    )
+    world.CreateStaticBody(
+        position=coords_pixels_to_world((WINDOW_WIDTH, 0)),
+        fixtures=b2FixtureDef(
+            shape=b2.polygonShape(
+                box=(pixels_to_world(20), pixels_to_world(WINDOW_HEIGHT))),
+            density=100,
+            restitution=1.0,
+            friction=0.0)
+    )
+    world.CreateStaticBody(
+        position=coords_pixels_to_world((0, -20)),
+        fixtures=b2FixtureDef(
+            shape=b2.polygonShape(
+                box=(pixels_to_world(WINDOW_WIDTH), pixels_to_world(10))),
+            density=100,
+            restitution=1.0,
+            friction=0.0)
+    )
+
+    Spikes((300, 700))
+    Blade((700, 700))
+
+    clock = pygame.time.Clock()
+    running = True
+
+    drawing_on = False
+    erasing_on = False
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_btn = pygame.mouse.get_pressed()
+                if mouse_btn[0]:
+                    drawing_on = True
+                    erasing_on = False
+                    prev_point = event.pos
+                    cur_point = None
+                elif mouse_btn[2]:
+                    erasing_on = True
+                    drawing_on = False
+                    eraser.move(*event.pos)
+            if event.type == pygame.MOUSEMOTION:
+                if drawing_on:
+                    cur_point = event.pos
+                    for pt in interval_points(prev_point, cur_point):
+                        Ball(*pt)
+                    prev_point = cur_point
+                elif erasing_on:
+                    eraser.move(*event.pos)
+            if event.type == pygame.MOUSEBUTTONUP:
+                if drawing_on:
+                    Ball(*event.pos)
+                drawing_on = False
+                erasing_on = False
+                eraser.move(-100, -100)
+            if event.type == pygame.KEYDOWN:
+                mouse_coords = pygame.mouse.get_pos()
+                btn_pressed = pygame.key.get_pressed()
+                if btn_pressed[pygame.K_w]:
+                    player = Player(*mouse_coords)
+
+        # обновимся
+        world.Step(TIME_STEP, 10, 10)
+        player.update()
+        all_sprites.update()
+
+        # порисуем
+        screen.blit(bg, (0, 0))
+        for obg in [path_group, eraser, player, obstacle_group]:
+            obg.draw(screen)
+        draw_walls(screen)
+        player.display_score()
+
+        # for body in world.bodies:
+        #     for fixture in body.fixtures:
+        #         fixture.shape.draw(body, fixture)
+
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    end_window()
+    start_window()
 
 pygame.quit()
 sys.exit()

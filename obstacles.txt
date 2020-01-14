@@ -1,5 +1,5 @@
-2S B
-2B 2B
-B S
-S B
+2S B S
+2B 2B S
+B S S
+S B S
 3B S S
