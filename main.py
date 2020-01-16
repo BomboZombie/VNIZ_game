@@ -6,7 +6,7 @@ import re
 import sys
 from Box2D import *
 
-WINDOW_SIZE = WINDOW_WIDTH, WINDOW_HEIGHT = 1200, 900
+WINDOW_SIZE = WINDOW_WIDTH, WINDOW_HEIGHT = 1200, 910
 FPS = 60
 TIME_STEP = 1 / FPS
 BG_COLOR = pygame.Color('black')
@@ -84,7 +84,6 @@ class Player(pygame.sprite.Sprite):
                 friction=0.1))
 
         self.score = 0
-        self.distance = 0
 
     def update(self):
         # вращение
@@ -93,32 +92,38 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
 
         # перемещение
-        position = coords_world_to_pixels(tuple(self.body.transform.position))
-        self.distance += (self.rect.centery - position[1])
-        self.rect.center = position
+        self.rect.center = coords_world_to_pixels(
+            tuple(self.body.transform.position))
         self.mask = pygame.mask.from_surface(self.image)
 
         # обработка положения
         col = pygame.sprite.spritecollideany(self, obstacle_group)
+        global running
         if col and pygame.sprite.collide_mask(self, col):
-            global running
             running = False
-            pass
+        if self.rect.centerx < 0 or self.rect.centerx > WINDOW_WIDTH:
+            running = False
 
         if list(self.body.transform.position)[1] <= 0:
+            self.update_score(ob_man.last_score)
             upgrade_world(self)
-
-        self.update_score()
 
     def draw(self, screen):
         screen.blit(self.image, self.rect.topleft)
 
     def display_score(self):
-        pass
-        # print(math.floor(self.score))
+        font = pygame.font.Font(None, 30)
+        text = font.render(f"SCORE: {self.score}", 1, pygame.Color('#cdba89'))
+        text_x = (WINDOW_WIDTH - 100) - text.get_width() // 2
+        text_y = 50 - text.get_height() // 2
+        text_w = text.get_width()
+        text_h = text.get_height()
+        screen.blit(text, (text_x, text_y))
+        pygame.draw.rect(screen, (0, 255, 0), (text_x - 10, text_y - 10,
+                                               text_w + 20, text_h + 20), 1)
 
-    def update_score(self):
-        pass
+    def update_score(self, points):
+        self.score += points
 
 
 class Spikes(pygame.sprite.Sprite):
@@ -150,7 +155,7 @@ class Blade(pygame.sprite.Sprite):
             self.original_image = load_image("left_blade.png", -1)
             clockwise = -1
         self.original_image = pygame.transform.scale(
-            self.original_image, (150, 150))
+            self.original_image, (130, 130))
 
         self.image = self.original_image.copy()
         self.rect = self.image.get_rect()
@@ -160,11 +165,11 @@ class Blade(pygame.sprite.Sprite):
         self.velocity = velocity
         self.body = world.CreateKinematicBody(
             position=coords_pixels_to_world(center_coords),
-            angularVelocity=2.5 * clockwise,
+            angularVelocity=3 * clockwise,
             linearVelocity=(pixels_to_world(velocity), 0),
             fixtures=b2FixtureDef(
                 shape=b2CircleShape(
-                    radius=pixels_to_world(self.rect.w // 2 - 20)),
+                    radius=pixels_to_world(self.rect.w // 2 - 60)),
                 density=0,
                 restitution=0.0,
                 friction=0.0))
@@ -198,18 +203,12 @@ class Blade(pygame.sprite.Sprite):
     def change_direction(self):
         self.set_velocity(-1 * self.velocity)
 
-    def move_a_bit(self):
-        sign = int(self.velocity > 0)
-        current_position = self.rect.center
-        self.rect.center = (
-            current_position[0] + sign * 5, current_position[1])
-        self.body.position = coords_pixels_to_world(self.rect.center)
-
 
 class ObstacleManager():
     def __init__(self):
-        self.start = 380
-        self.step = 260
+        self.start = 370
+        self.step = 240
+        self.last_score = 3
 
     def get_sequence(self):
         f = open("obstacles.txt", mode="r", encoding="utf8")
@@ -231,7 +230,7 @@ class ObstacleManager():
                 remove_sprite_from_game(b)
                 b = Blade((random.randint(0, WINDOW_WIDTH), y))
 
-            velocity = random.gauss(100, 50)
+            velocity = random.gauss(120, 50)
             sign = random.choice([-1, 1])
             b.set_velocity(sign * velocity)
 
@@ -252,6 +251,11 @@ class ObstacleManager():
                 "S": self.put_spikes,
                 "B": self.put_blade
             }.get(name)(y, amnt)
+            self.update_score({"S": 1,
+                                 "B": 2}.get(name))
+
+    def update_score(self, num):
+        self.last_score += num
 
 
 def load_image(name, colorkey=None):
@@ -367,15 +371,31 @@ def end_window():
     run = True
 
     fg = pygame.Surface(WINDOW_SIZE, pygame.SRCALPHA)
-    fg.fill((0, 0, 0, 128))
+    fg.fill((224, 99, 201, 128))
     screen.blit(fg, (0, 0))
 
+    text = ["GAME OVER", ""
+            f"Your score: {player.score}"]
+    font = pygame.font.Font(None, 100)
+    text_coord = 50
+    for line in text:
+        string_rendered = font.render(line, 1, pygame.Color('#fff500'))
+        line_rect = string_rendered.get_rect()
+        text_coord += 10
+        line_rect.top = text_coord
+        line_rect.x = (WINDOW_WIDTH - string_rendered.get_width()) // 2
+        text_coord += line_rect.height
+        screen.blit(string_rendered, line_rect)
+
+    clock = pygame.time.Clock()
     while run:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
             if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
                 run = False
+        pygame.display.flip()
+        clock.tick(FPS)
 
 
 ##########################################################################
@@ -398,6 +418,7 @@ def my_draw_circle(circle, body, fixture):
     pygame.draw.circle(screen, colors.get(body.type, (0, 0, 0)), [int(
         x) for x in position], int(circle.radius * PPM))
 
+
     # Note: Python 3.x will enforce that pygame get the integers it requests,
     #       and it will not convert from float.
 Box2D.b2.circleShape.draw = my_draw_circle
@@ -416,10 +437,10 @@ loop = True
 while loop:
     screen = pygame.display.set_mode(WINDOW_SIZE)
 
-    bg = pygame.transform.scale(load_image('tom_jerry.jpg'), WINDOW_SIZE)
+    bg = pygame.transform.scale(load_image('background.jpg'), WINDOW_SIZE)
     screen.blit(bg, (0, 0))
 
-    world = b2World(gravity=(0, -15), doSleep=True)
+    world = b2World(gravity=(0, -10), doSleep=True)
 
     all_sprites = pygame.sprite.Group()
     path_group = pygame.sprite.Group()
