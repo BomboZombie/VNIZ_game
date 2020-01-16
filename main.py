@@ -136,11 +136,11 @@ class Spikes(pygame.sprite.Sprite):
 
         self.body = world.CreateStaticBody(
             position=coords_pixels_to_world(
-                (center_coords[0], center_coords[1] + 16)),
+                (center_coords[0], center_coords[1] + 20)),
             fixtures=b2FixtureDef(
-                shape=b2.polygonShape(box=(pixels_to_world(self.rect.w / 2 - 5),
-                                           pixels_to_world(self.rect.h / 2 - 15))),
-                density=0,
+                shape=b2.polygonShape(box=(pixels_to_world(self.rect.w / 2),
+                                           pixels_to_world(self.rect.h / 2 - 20))),
+                density=1000,
                 restitution=0.0,
                 friction=0.0))
 
