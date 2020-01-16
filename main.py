@@ -47,7 +47,7 @@ class Ball(pygame.sprite.Sprite):
 class Eraser(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__(all_sprites)
-        im = load_image("erase.jpg", -1)  # COMPLETE THIS
+        im = load_image("eraser.png", -1)
         im = pygame.transform.scale(im, (100, 100))
         self.image = im
         self.rect = self.image.get_rect()
@@ -65,8 +65,8 @@ class Eraser(pygame.sprite.Sprite):
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
-        im = load_image("player.png", -1)  # COMPLETE THIS
-        im = pygame.transform.scale(im, (100, 100))
+        im = load_image("monkey.png", -1)  # COMPLETE THIS
+        # im = pygame.transform.scale(im, (100, 100))
         self.original_image = im.copy()
         self.image = im.copy()
         self.rect = self.image.get_rect()
@@ -123,7 +123,7 @@ class Player(pygame.sprite.Sprite):
                                                text_w + 20, text_h + 20), 1)
 
     def update_score(self, points):
-        self.score += points
+        self.score = points
 
 
 class Spikes(pygame.sprite.Sprite):
@@ -136,10 +136,10 @@ class Spikes(pygame.sprite.Sprite):
 
         self.body = world.CreateStaticBody(
             position=coords_pixels_to_world(
-                (center_coords[0], center_coords[1] + 20)),
+                (center_coords[0], self.rect.top + self.rect.h - 4)),
             fixtures=b2FixtureDef(
                 shape=b2.polygonShape(box=(pixels_to_world(self.rect.w / 2),
-                                           pixels_to_world(self.rect.h / 2 - 20))),
+                                           pixels_to_world(8))),
                 density=1000,
                 restitution=0.0,
                 friction=0.0))
@@ -252,7 +252,7 @@ class ObstacleManager():
                 "B": self.put_blade
             }.get(name)(y, amnt)
             self.update_score({"S": 1,
-                                 "B": 2}.get(name))
+                               "B": 2}.get(name) * amnt)
 
     def update_score(self, num):
         self.last_score += num
@@ -268,6 +268,18 @@ def load_image(name, colorkey=None):
     else:
         image = image.convert_alpha()
     return image
+
+
+def write_score(score):
+    current_score = read_score()
+    if score > current_score:
+        with open('log.txt', "w", encoding="utf8") as f:
+            f.write(str(score))
+
+
+def read_score():
+    with open('log.txt', "r", encoding="utf8") as f:
+        return int(f.read())
 
 
 def terminate():
@@ -352,9 +364,22 @@ def draw_walls(screen):
 def start_window():
     screen = pygame.display.set_mode(WINDOW_SIZE)
 
+    # установим фон
     bg = pygame.transform.scale(load_image(
         'start_image.png'), WINDOW_SIZE)
     screen.blit(bg, (0, 0))
+
+    # выведем счет
+    score = read_score()
+    font = pygame.font.Font(None, 30)
+    text = font.render(f"BEST SCORE: {score}", 1, pygame.Color('#cdba89'))
+    text_x = (WINDOW_WIDTH - 100) - text.get_width() // 2
+    text_y = 50 - text.get_height() // 2
+    text_w = text.get_width()
+    text_h = text.get_height()
+    screen.blit(text, (text_x, text_y))
+    pygame.draw.rect(screen, (0, 255, 0), (text_x - 10, text_y - 10,
+                                           text_w + 20, text_h + 20), 1)
 
     clock = pygame.time.Clock()
     while True:
@@ -368,12 +393,14 @@ def start_window():
 
 
 def end_window():
-    run = True
+    write_score(player.score)
 
+    # зарозовим экран
     fg = pygame.Surface(WINDOW_SIZE, pygame.SRCALPHA)
     fg.fill((224, 99, 201, 128))
     screen.blit(fg, (0, 0))
 
+    # выведем информацию
     text = ["GAME OVER", ""
             f"Your score: {player.score}"]
     font = pygame.font.Font(None, 100)
@@ -387,6 +414,7 @@ def end_window():
         text_coord += line_rect.height
         screen.blit(string_rendered, line_rect)
 
+    run = True
     clock = pygame.time.Clock()
     while run:
         for event in pygame.event.get():

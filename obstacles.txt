@@ -1,1 +1,5 @@
 4S 4S 4S
+2S B
+3S B
+B 2S
+3B 3B 3B
