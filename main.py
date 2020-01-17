@@ -9,8 +9,6 @@ from Box2D import *
 WINDOW_SIZE = WINDOW_WIDTH, WINDOW_HEIGHT = 1200, 910
 FPS = 60
 TIME_STEP = 1 / FPS
-BG_COLOR = pygame.Color('black')
-
 PPM = 20.0  # pixels per meter
 
 
@@ -25,7 +23,6 @@ class Ball(pygame.sprite.Sprite):
         # не будем уж совсем загружать комп.
         # для функционирования достаточно, чтобы между шариками были пробелы
         if pygame.sprite.spritecollideany(self, path_group) is not None:
-            # return super().__init__(fake_path, all_sprites)
             return None
         super().__init__(path_group, all_sprites)
         self.body = world.CreateStaticBody(
@@ -113,7 +110,7 @@ class Player(pygame.sprite.Sprite):
 
     def display_score(self):
         font = pygame.font.Font(None, 30)
-        text = font.render(f"SCORE: {self.score}", 1, pygame.Color('#cdba89'))
+        text = font.render(f"СЧЁТ: {self.score}", 1, pygame.Color('#cdba89'))
         text_x = (WINDOW_WIDTH - 100) - text.get_width() // 2
         text_y = 50 - text.get_height() // 2
         text_w = text.get_width()
@@ -136,10 +133,10 @@ class Spikes(pygame.sprite.Sprite):
 
         self.body = world.CreateStaticBody(
             position=coords_pixels_to_world(
-                (center_coords[0], self.rect.top + self.rect.h - 4)),
+                (center_coords[0], self.rect.bottom - 4)),
             fixtures=b2FixtureDef(
-                shape=b2.polygonShape(box=(pixels_to_world(self.rect.w / 2),
-                                           pixels_to_world(8))),
+                shape=b2.polygonShape(box=(pixels_to_world(self.rect.w / 2 - 1),
+                                           pixels_to_world(3))),
                 density=1000,
                 restitution=0.0,
                 friction=0.0))
@@ -365,21 +362,18 @@ def start_window():
     screen = pygame.display.set_mode(WINDOW_SIZE)
 
     # установим фон
-    bg = pygame.transform.scale(load_image(
-        'start_image.png'), WINDOW_SIZE)
+    bg = load_image('start_image.png')
     screen.blit(bg, (0, 0))
 
-    # выведем счет
+    # Выведем рекорд
     score = read_score()
-    font = pygame.font.Font(None, 30)
-    text = font.render(f"BEST SCORE: {score}", 1, pygame.Color('#cdba89'))
-    text_x = (WINDOW_WIDTH - 100) - text.get_width() // 2
-    text_y = 50 - text.get_height() // 2
+    font = pygame.font.Font(None, 70)
+    text = font.render(f"Рекорд: {score}", 1, pygame.Color('#e73232'))
+    text_x = WINDOW_WIDTH // 2 - text.get_width() // 2 - 10
+    text_y = WINDOW_HEIGHT // 2 - text.get_height() // 2 - 50
     text_w = text.get_width()
     text_h = text.get_height()
     screen.blit(text, (text_x, text_y))
-    pygame.draw.rect(screen, (0, 255, 0), (text_x - 10, text_y - 10,
-                                           text_w + 20, text_h + 20), 1)
 
     clock = pygame.time.Clock()
     while True:
@@ -401,8 +395,8 @@ def end_window():
     screen.blit(fg, (0, 0))
 
     # выведем информацию
-    text = ["GAME OVER", ""
-            f"Your score: {player.score}"]
+    text = ["ИГРА ОКОНЧЕНА", ""
+            f"Набрано очков: {player.score}"]
     font = pygame.font.Font(None, 100)
     text_coord = 50
     for line in text:
