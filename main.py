@@ -420,37 +420,6 @@ def end_window():
         clock.tick(FPS)
 
 
-##########################################################################
-
-
-def my_draw_polygon(polygon, body, fixture):
-    vertices = [(body.transform * v) * PPM for v in polygon.vertices]
-    vertices = [(v[0], WINDOW_HEIGHT - v[1]) for v in vertices]
-    pygame.draw.polygon(screen, colors[body.type], vertices)
-
-
-Box2D.b2.polygonShape.draw = my_draw_polygon
-
-
-def my_draw_circle(circle, body, fixture):
-    # help(body.transform)
-    # exit()
-    position = body.transform * circle.pos * PPM
-    position = (position[0], WINDOW_HEIGHT - position[1])
-    pygame.draw.circle(screen, colors.get(body.type, (0, 0, 0)), [int(
-        x) for x in position], int(circle.radius * PPM))
-
-
-    # Note: Python 3.x will enforce that pygame get the integers it requests,
-    #       and it will not convert from float.
-Box2D.b2.circleShape.draw = my_draw_circle
-
-colors = {
-    Box2D.b2.staticBody: (0, 255, 25, 50),
-    Box2D.b2.dynamicBody: (127, 127, 127, 50),
-}
-##################################################
-
 # main game loop
 pygame.init()
 
@@ -556,10 +525,6 @@ while loop:
             obg.draw(screen)
         draw_walls(screen)
         player.display_score()
-
-        # for body in world.bodies:
-        #     for fixture in body.fixtures:
-        #         fixture.shape.draw(body, fixture)
 
         pygame.display.flip()
         clock.tick(FPS)
