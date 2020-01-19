@@ -238,16 +238,21 @@ class ObstacleManager():
                 remove_sprite_from_game(s)
                 s = Spikes((random.randint(0, WINDOW_WIDTH), y))
 
+    def put_nothing(self, *args):
+        pass
+
     def insert_sequence(self):
         seq = self.get_sequence()
         for i in range(len(seq)):
             y = self.start + i * self.step
             name, amnt = seq.pop(0)
             {
+                "N": self.put_nothing,
                 "S": self.put_spikes,
                 "B": self.put_blade
             }.get(name)(y, amnt)
-            self.update_score({"S": 1,
+            self.update_score({"N": 0,
+                               "S": 1,
                                "B": 2}.get(name) * amnt)
 
     def update_score(self, num):
