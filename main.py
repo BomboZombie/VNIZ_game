@@ -447,6 +447,7 @@ while loop:
     player = Player(100, 1)
     ob_man = ObstacleManager()
 
+    # стены
     world.CreateStaticBody(
         position=coords_pixels_to_world((0, 0)),
         fixtures=b2FixtureDef(
